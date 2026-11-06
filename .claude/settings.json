@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"\nconst { DatabaseSync } = require('node:sqlite');\nconst path = require('path');\nconst os = require('os');\nconst dataDir = process.env.DATA_DIR || path.join(os.homedir(), 'Library/Application Support/apotheosis');\ntry {\n  const db = new DatabaseSync(path.join(dataDir, 'apotheosis.db'), { readOnly: true });\n  const d = new Date();\n  const today = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');\n  const row = db.prepare('SELECT id FROM standups WHERE date = ?').get(today);\n  if (!row && d.getDay() > 0 && d.getDay() < 6) process.stdout.write('[[reminder: you haven\\'t logged /standup yet today]]\\n');\n  db.close();\n} catch (e) { /* db not ready yet */ }\n\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

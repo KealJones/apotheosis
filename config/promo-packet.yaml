@@ -1,0 +1,133 @@
+# Example promotion packet rubric.
+#
+# Placeholder content so /review and the `review_status` MCP tool work out of
+# the box. Replace it with your own company's packet format by putting your
+# files in ~/Library/Application Support/apotheosis/config/ (this file plus the
+# ladder it references). That directory wins over this one and is never
+# committed.
+#
+# Levels are data, not code: the app lets you pick a current level and a
+# target level and diffs the two.
+
+version: 1
+
+# The ladder lives in its own file. Do not duplicate level text here.
+ladder_ref: ./leveling-example.yaml
+
+defaults:
+  current_level: p3   # Senior Software Engineer
+  target_level: p4    # Staff Software Engineer
+
+# ── Packet document structure ────────────────────────────────────────────────
+# Drives the markdown export on the /review page. Order matters.
+sections:
+  - id: person
+    title: Person
+    kind: metadata
+    fields:
+      - current_position
+      - proposed_position
+      - time_in_current_position
+      - total_years_of_experience
+      - promoting_manager
+      - effective_date
+
+  - id: scope_of_role
+    title: Scope of Role
+    kind: narrative
+    word_limit: 300
+    guidance: >-
+      Describe the organization and team charter, then what the role is
+      expected to do at the proposed level. This is a job description for the
+      role, not a list of the candidate's accomplishments.
+
+  - id: candidate_background
+    title: Candidate Background
+    kind: narrative
+    word_limit: 200
+    guidance: >-
+      One paragraph. A short overview of the candidate's experience and
+      technical journey.
+
+  - id: promotion_assessment
+    title: Promotion Assessment and Key Accomplishments
+    kind: assessment
+    criteria_ref: all
+    guidance: >-
+      Accomplishments connected to the leveling criteria. Pick the things that
+      stand out, not a play-by-play. Add supporting evidence per criterion.
+
+  - id: peer_feedback
+    title: Peer Feedback
+    kind: narrative
+    guidance: >-
+      Feedback from peers and cross-functional partners, ideally from people at
+      or above the target level.
+    min_providers:
+      default: 4
+
+  - id: growth_areas
+    title: Growth Areas in New Position
+    kind: narrative
+    count: [2, 3]
+    guidance: >-
+      Honest but supportive. Name the gaps where the candidate has not yet
+      shown the target level, and a plan to close them.
+
+  - id: appendix_evidence
+    title: Appendix - Evidence
+    kind: appendix
+    guidance: >-
+      Put evidence links here and reference them from the sections above,
+      instead of scattering links through the document.
+    groups: [Projects, Design Docs, Documentation, GitHub]
+
+# ── Rules the drafter and scorer must enforce ────────────────────────────────
+rules:
+  eligibility:
+    sustained_behavior_months: 3
+    note: >-
+      The candidate should show sustained behavior at the next level for at
+      least 3 months across most criteria.
+  writing:
+    - id: star
+      rule: >-
+        Structure each example with the STAR method (Situation, Task, Action,
+        Result). Describe what this person did; do not credit them with the
+        team's work.
+    - id: quantify
+      rule: >-
+        Every claim carries a number. Use percentages, durations, counts, and
+        before/after measurements.
+    - id: banned_intensifiers
+      rule: >-
+        Do not use vague intensifiers in place of data.
+      banned: [significantly, considerably, substantially, greatly, dramatically, massively, extremely, very]
+    - id: outcome_not_output
+      rule: >-
+        Report outcomes, not output. PR counts and ticket counts are not
+        evidence on their own; state what the work changed.
+    - id: map_to_leveling
+      rule: >-
+        Map each contribution to the target level's expectations from the
+        referenced ladder file.
+    - id: why_now
+      rule: >-
+        The assessment must answer "why now": what makes the candidate ready at
+        this moment.
+    - id: bias_check
+      rule: >-
+        Prefer observable behavior and outcomes over character judgments, and
+        cite examples from the whole review period, not only recent ones.
+
+# ── Values and principles ────────────────────────────────────────────────────
+# The scorer tags evidence with the values it demonstrates. Replace these with
+# your company's.
+values:
+  - { id: ownership, title: Ownership., text: We take responsibility for outcomes, not just tasks. }
+  - { id: teamwork, title: Teamwork., text: We succeed together and make each other better. }
+  - { id: customer_focus, title: Customer focus., text: We start from the problem the customer actually has. }
+
+principles:
+  - { id: communication, title: Communication, text: Share information, ideas, and feedback openly }
+  - { id: collaboration, title: Collaboration, text: Use each other's strengths to get the best result }

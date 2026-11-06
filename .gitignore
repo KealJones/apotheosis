@@ -1,0 +1,38 @@
+# Runtime data — never commit
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Screenshots
+screenshots/
+
+# Node
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+apps/*/dist/
+packages/*/dist/
+
+# Swift / Xcode
+apps/capture/.build/
+apps/capture/DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Local Claude Code overrides
+.claude/settings.local.json
+
+# Env
+.env
+.env.local
+
+Engineer_Growth_Archive
+
+# Local planning notes and lessons
+tasks/

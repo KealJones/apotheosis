@@ -1,0 +1,159 @@
+# Example leveling ladder: a generic software engineer IC track.
+#
+# This is placeholder content so /review works out of the box. Replace it with
+# your own company's ladder by putting your files in
+# ~/Library/Application Support/apotheosis/config/ (promo-packet.yaml plus the
+# ladder it references). That directory wins over this one and is never
+# committed. See scripts/gen-leveling-yaml.mjs for converting a CSV export.
+#
+# Expectation text is written in the first person. The /review page picks a
+# current level and a target level and diffs them. Use null for a level that
+# has no expectation for a criterion.
+
+version: 1
+ladder:
+  id: software_engineer_ic
+  title: Software Engineer IC
+
+levels:
+  - { id: p1, code: P1, title: "Software Engineer I" }
+  - { id: p2, code: P2, title: "Software Engineer II" }
+  - { id: p3, code: P3, title: "Senior Software Engineer" }
+  - { id: p4, code: P4, title: "Staff Software Engineer" }
+  - { id: p5, code: P5, title: "Senior Staff Software Engineer" }
+  - { id: p6, code: P6, title: "Principal Software Engineer" }
+  - { id: p7, code: P7, title: "Distinguished Software Engineer" }
+
+criteria:
+  - id: role_focus
+    title: "Role Focus"
+    evidence_sources: [projects, standups]
+    expectations:
+      p1: |-
+        I ship well-scoped tasks with guidance from teammates
+      p2: |-
+        I own features end to end, from design through rollout, with light guidance
+      p3: |-
+        I lead multi-milestone projects for a product area or system on my own
+      p4: |-
+        I drive lasting outcomes across a team or system through technical leadership
+      p5: |-
+        I shape multi-team technical strategy and act as a role model for other engineers
+      p6: |-
+        I own the technical roadmap for a company-level objective or platform domain
+      p7: |-
+        I set long-term technical direction for the organization and represent it externally
+
+  - id: scope
+    title: "Scope"
+    prompt: "How wide is the area my work affects?"
+    evidence_sources: [projects, standups, prs, meetings]
+    expectations:
+      p1: |-
+        My work affects individual tasks within my team
+      p2: |-
+        My work affects features within my team's area
+      p3: |-
+        My work affects my whole team's area and its neighbors
+      p4: |-
+        My work affects several teams or a full product capability
+      p5: |-
+        My work affects a group of teams or a major system
+      p6: |-
+        My work affects an entire department or platform
+      p7: |-
+        My work affects the whole organization
+
+  - id: problem_solving
+    title: "Problem Solving"
+    evidence_sources: [standups, projects, ideas, prs, ai_usage_wins]
+    expectations:
+      p1: |-
+        I solve clearly defined problems and ask for help when stuck
+      p2: |-
+        I solve moderately ambiguous problems and weigh a few options
+      p3: |-
+        I break down ambiguous problems and pick approaches with clear tradeoffs
+      p4: |-
+        I solve problems that span teams and anticipate second-order effects
+      p5: |-
+        I frame problems for others and find leverage that removes whole classes of issues
+      p6: |-
+        I solve novel problems where no known approach exists
+      p7: |-
+        I identify which problems the organization should be solving at all
+
+  - id: collaboration_and_interaction
+    title: "Collaboration & Interaction"
+    evidence_sources: [slack_signals, meetings, prs, standups]
+    expectations:
+      p1: |-
+        I communicate status clearly and respond to feedback
+      p2: |-
+        I give useful code review and help teammates get unblocked
+      p3: |-
+        I mentor teammates and keep partners informed without being asked
+      p4: |-
+        I align several teams on a shared plan and resolve disagreements
+      p5: |-
+        I build consensus across groups and grow other technical leaders
+      p6: |-
+        I influence leadership and partner functions on technical direction
+      p7: |-
+        I build relationships across and outside the organization that change its direction
+
+  - id: code_fluency
+    title: "Craft: Code Fluency"
+    parent: craft
+    evidence_sources: [prs, code_time, projects]
+    expectations:
+      p1: |-
+        I write readable, tested code that follows team conventions
+      p2: |-
+        I write maintainable code and improve the code I touch
+      p3: |-
+        I set the quality bar for my team's codebase
+      p4: |-
+        I raise the quality bar across several codebases
+      p5: |-
+        I create shared libraries and patterns other teams adopt
+      p6: |-
+        The expectations from the previous level still apply, at increased scope.
+      p7: |-
+        The expectations from the previous level still apply, at increased scope.
+
+  - id: software_design
+    title: "Craft: Software Design"
+    parent: craft
+    evidence_sources: [projects, prs, ideas, standups]
+    expectations:
+      p1: null
+      p2: |-
+        I design components that fit cleanly into the existing system
+      p3: |-
+        I design features and services that hold up as requirements change
+      p4: |-
+        I design systems that span teams and stay simple to operate
+      p5: |-
+        I design platforms that other teams build on
+      p6: |-
+        I design systems that need research and a staged validation plan
+      p7: |-
+        The expectations from the previous level still apply, at increased scope.
+
+  - id: required_experience
+    title: "Required Experience"
+    evidence_sources: []
+    expectations:
+      p1: null
+      p2: null
+      p3: |-
+        3+ years of related experience
+      p4: |-
+        5+ years of related experience
+      p5: |-
+        7+ years of related experience
+      p6: |-
+        9+ years of related experience
+      p7: |-
+        12+ years of related experience

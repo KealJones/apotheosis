@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "apotheosis": {
+      "command": "node",
+      "args": ["apps/mcp/dist/server.js"]
+    }
+  }
+}

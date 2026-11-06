@@ -1,0 +1,15 @@
+{
+  "name": "apotheosis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Apotheosis — personal activity-capture system (capture daemon + MCP server + shared core).",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "dev": "pnpm -r dev"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>apotheosis needs screen access to track your work context.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>apotheosis uses Apple Events to capture browser URLs for context.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>apotheosis records your side of meetings so they can be transcribed on-device.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>apotheosis transcribes meeting audio on-device.</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>CFBundleName</key>
+    <string>Capture</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.kealjones.apotheosis.capture</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+</dict>
+</plist>

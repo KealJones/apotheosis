@@ -1,0 +1,100 @@
+#!/bin/bash
+set -e
+
+echo "=== Apotheosis Setup ==="
+echo ""
+echo "This script initializes Apotheosis for a new user."
+echo "It creates the data directory, builds the MCP server and capture daemon,"
+echo "configures mention patterns, and installs a Launch Agent."
+echo ""
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 1. Create data directory
+DATA_DIR="${HOME}/Library/Application Support/apotheosis"
+echo "Creating data directory: $DATA_DIR"
+mkdir -p "$DATA_DIR/screenshots"
+
+# 2. Gather user info for mention patterns
+echo ""
+echo "--- User Configuration ---"
+echo "Mention patterns let the /mentions and /follow-ups tools find"
+echo "where your name appears in captured screen text."
+echo ""
+
+GH_USER=""
+if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+  GH_USER=$(gh api user -q .login 2>/dev/null || true)
+  if [ -n "$GH_USER" ]; then
+    echo "Detected GitHub username: $GH_USER"
+  fi
+fi
+
+if [ -z "$GH_USER" ]; then
+  read -rp "GitHub username (e.g. myuser): " GH_USER
+fi
+
+read -rp "Display name (e.g. First Last): " DISPLAY_NAME
+FIRST_NAME=$(echo "$DISPLAY_NAME" | awk '{print $1}')
+
+cat > "$DATA_DIR/user-config.json" <<EOF
+{
+  "github_username": "$GH_USER",
+  "display_name": "$DISPLAY_NAME",
+  "mention_patterns": ["@$GH_USER", "@$(echo "$FIRST_NAME" | tr '[:upper:]' '[:lower:]')", "$FIRST_NAME "],
+  "work_patterns": []
+}
+EOF
+echo "Wrote user config to: $DATA_DIR/user-config.json"
+echo "Add regexes for your company's domains/GitHub org to \"work_patterns\" there so triage counts them as work."
+
+# 3. Build MCP server
+echo ""
+echo "--- Building MCP server ---"
+(pnpm install && pnpm --filter @apotheosis/core build && pnpm --filter apotheosis-mcp build)
+echo "MCP server built."
+
+# 4. Create convenience symlink
+mkdir -p data
+if [ -L data/live ]; then
+  rm data/live
+fi
+ln -s "$DATA_DIR" data/live
+echo "Created data/live symlink -> $DATA_DIR"
+
+# 5. Build and codesign capture daemon
+echo ""
+echo "--- Building capture daemon ---"
+(cd apps/capture && ./build.sh)
+echo "Capture daemon built and signed."
+
+# 6. Install Launch Agent
+echo ""
+echo "--- Installing Launch Agent ---"
+BINARY_PATH="${REPO_DIR}/apps/capture/.build/arm64-apple-macosx/debug/Capture"
+PLIST_DEST="${HOME}/Library/LaunchAgents/com.kealjones.apotheosis.capture.plist"
+mkdir -p ~/Library/LaunchAgents
+
+LOG_DIR="${HOME}/Library/Logs/apotheosis"
+mkdir -p "$LOG_DIR"
+sed -e "s|__BINARY_PATH__|${BINARY_PATH}|g" -e "s|__LOG_DIR__|${LOG_DIR}|g" \
+  "${REPO_DIR}/apps/capture/com.kealjones.apotheosis.capture.plist" \
+  > "$PLIST_DEST"
+echo "Installed Launch Agent to: $PLIST_DEST"
+
+echo ""
+echo "=== Setup complete ==="
+echo ""
+echo "Next steps:"
+echo "  1. Start the capture daemon:"
+echo "       launchctl load ~/Library/LaunchAgents/com.kealjones.apotheosis.capture.plist"
+echo "     A camera icon will appear in your menu bar."
+echo ""
+echo "  2. Grant Screen Recording permission when macOS prompts you."
+echo ""
+echo "  3. Open Claude Code in this directory and try:"
+echo "       /capture    -- check daemon status"
+echo "       /today      -- see today's activity timeline"
+echo "       /standup    -- generate yesterday's standup"
+echo ""
+echo "  The daemon will auto-start on login. Use /capture to manage it."

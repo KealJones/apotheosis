@@ -1,0 +1,28 @@
+{
+  "name": "apotheosis-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ADHD-friendly work tracker MCP server",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "dev": "tsc -w",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:baseline": "vitest run --reporter=verbose 2>&1 | tee test-baseline.log"
+  },
+  "dependencies": {
+    "@apotheosis/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.7"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
