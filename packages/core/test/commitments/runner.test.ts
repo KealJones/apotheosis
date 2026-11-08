@@ -284,4 +284,17 @@ describe('auto-expiry', () => {
     // Once the detector has been removed (or recovers but no longer sees it), expiry resumes.
     expect((await runDetectors({ detectors: [], now: NOW })).expired).toBe(1);
   });
+
+  it('skipLocalModel skips local-model detectors and leaves their items unexpired', async () => {
+    const { world, detector } = makeReviewDetector();
+    const local: Detector = { ...detector, usesLocalModel: true };
+    world.requested.set('pr/1', { title: 'Review PR 1' });
+    await runDetectors({ detectors: [local], now: NOW - EXPIRY_SECONDS - DAY });
+
+    world.requested.set('pr/2', { title: 'Review PR 2' });
+    const report = await runDetectors({ detectors: [local], now: NOW, skipLocalModel: true });
+    expect(report.detectors).toEqual([]);
+    expect(report.expired).toBe(0);
+    expect(rows(db).map((r) => r.source_ref)).toEqual(['pr/1']);
+  });
 });

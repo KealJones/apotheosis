@@ -12,6 +12,7 @@ import { classifyInbound, clipTitle, counterpartyOf, loadScan } from './slackSca
 export const slackAsk: Detector = {
   id: 'slack_ask',
   sources: ['slack_ask'],
+  usesLocalModel: true,
 
   async detect(ctx) {
     const scan = loadScan(ctx);

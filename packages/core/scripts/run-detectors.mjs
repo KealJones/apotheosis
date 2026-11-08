@@ -8,10 +8,11 @@
 // Manual invocation for testing: `node packages/core/scripts/run-detectors.mjs`
 // (requires `pnpm --filter @apotheosis/core build` first, since this imports
 // the compiled dist, not the TypeScript source).
-import { runDetectors } from '../dist/index.js';
+import { runScheduledPass } from '../dist/index.js';
 
 const started = Date.now();
-const report = await runDetectors();
+const pass = await runScheduledPass({ guard: true });
+const report = pass.detectors;
 const elapsedMs = Date.now() - started;
 
 const totalDetected = report.detectors.reduce((n, d) => n + d.detected, 0);
@@ -24,6 +25,16 @@ console.log(
   `detected=${totalDetected} inserted=${totalInserted} resolved=${totalResolved} ` +
   `woken=${report.woken} expired=${report.expired} elapsed_ms=${elapsedMs}`,
 );
+
+if (pass.local_model_skipped) {
+  console.log(`[run-detectors] skipped local-model work: ${pass.local_model_skipped}`);
+}
+if (pass.digest) {
+  const d = pass.digest;
+  console.log(`[run-detectors] slack digest: conversations=${d.conversations} digested=${d.digested} unchanged=${d.unchanged}`);
+  errors.push(...d.errors.map((e) => `slack_digest: ${e}`));
+}
+if (pass.unloaded_model) console.log('[run-detectors] unloaded local model');
 
 if (errors.length > 0) {
   console.error(`[run-detectors] ${errors.length} detector error(s):`);

@@ -41,6 +41,17 @@ Show a human-readable timeline of what you've done so far today.
    - One line per item in `todos`, in the order returned (already ranked).
    - If `todos` is empty, show "Nothing ranked right now — run `/whats-next` or check `total_open`" only if `total_open` > 0; otherwise omit the section entirely.
 
+6b. Call `slack_digests` with `{ since: <today 00:00 ISO> }`. If `enabled` is false, skip this
+    step silently. Otherwise show a `## Slack` section after the to-dos:
+    ```
+    ## Slack
+    [urgency] #channel or DM with X: summary
+      → my to-do / open item
+    ```
+    - One entry per digest, in the order returned (most urgent first). Put `my_todos` and
+      `open_items` underneath as arrows; skip the arrows when both are empty.
+    - If `undigested` > 0, add one line: "N active conversations not digested yet."
+
 7. If no samples exist for today, say: "No samples captured yet today. Is the capture daemon running? Check the menu bar icon."
 
 ## Notes

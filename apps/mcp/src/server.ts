@@ -20,6 +20,7 @@ import * as getProject from './tools/get_project.js';
 import * as getInbox from './tools/get_inbox.js';
 import * as contextTimeline from './tools/context_timeline.js';
 import * as slackSearch from './tools/slack_search.js';
+import * as slackDigests from './tools/slack_digests.js';
 import * as logUsage from './tools/log_usage.js';
 import * as usageStats from './tools/usage_stats.js';
 import * as evidenceReport from './tools/evidence_report.js';
@@ -63,6 +64,7 @@ const tools = [
   getInbox,
   contextTimeline,
   slackSearch,
+  slackDigests,
   logUsage,
   usageStats,
   evidenceReport,

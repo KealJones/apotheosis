@@ -16,6 +16,16 @@ export interface UserConfig {
    */
   work_patterns?: string[];
   keep_meeting_audio?: boolean;
+  slack?: {
+    /**
+     * Opt-in. When true, the scheduled detector pass has the local model write a short digest
+     * of each active Slack conversation (summary, urgency, your to-dos, open items), and
+     * `standup_draft` / `slack_digests` hand those to Claude instead of raw message text.
+     */
+    local_digest?: boolean;
+    /** Case-insensitive regexes; matching messages are ignored everywhere (bot noise). */
+    ignore_patterns?: string[];
+  };
 }
 
 /** Re-read on every call (it's tiny) so edits apply without a restart. Missing/corrupt → {}. */

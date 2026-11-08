@@ -2,7 +2,7 @@
  * Precision/recall of the Slack detectors against YOUR real captured messages and a real
  * local model. Skipped unless APOTHEOSIS_SLACK_EVAL=1 (needs the real DB and Ollama).
  *
- *   APOTHEOSIS_SLACK_EVAL=1 APOTHEOSIS_OLLAMA_MODEL=qwen3.5:9b \
+ *   APOTHEOSIS_SLACK_EVAL=1 APOTHEOSIS_OLLAMA_MODEL=gemma4:e2b \
  *     pnpm --filter @apotheosis/core exec vitest run test/evals/slackDetectors.eval.test.ts
  *
  * slack-labels.json holds hand labels keyed by dedupe_hash only (sha256 of the permalink),

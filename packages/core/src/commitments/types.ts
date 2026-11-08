@@ -113,6 +113,8 @@ export interface Detector {
   id: string;
   /** Sources this detector owns. It may only emit, and is only asked to reconcile, these. */
   sources: readonly CommitmentSource[];
+  /** True when detect() calls the local model, so guarded runs can skip it. */
+  usesLocalModel?: boolean;
   /** Find candidates. Pure: no writes. */
   detect(ctx: DetectorContext): Promise<CommitmentCandidate[]>;
   /**

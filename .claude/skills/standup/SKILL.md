@@ -24,7 +24,7 @@ description: Generate a standup from captured activity. Defaults to yesterday, b
    - Call `standup_draft` with `{ compact: true, since, until }` (the same range as step 1).
    - Returns `yesterday_sessions`, `slack`, `claude_sessions`, `pending_commitments`, `open_prs`, `recent_ideas`, and `context_summary`.
    - **`slack` and `claude_sessions` are the highest-signal sources. Read them first.** Screen sessions only show which app was open; these show what the work was about.
-     - `slack.my_threads`: every thread or conversation I posted in, with the root message, my messages and who else was in it. Each one is almost always a standup bullet (support questions answered, investigations, decisions).
+     - `slack.my_threads`: every thread or conversation I posted in, with who else was in it. Each one is almost always a standup bullet (support questions answered, investigations, decisions). A thread has either raw text (`root` and `mine`) or, when `slack.local_digest` is on and up to date, a `digest` instead (`summary`, `urgency`, `my_todos`, `open_items`). Treat the digest as a local model's summary: use it for the bullet, and use `my_todos`/`open_items` as candidates for the "Today" section, but don't state them as fact if they conflict with other sources.
      - `slack.read`: conversations I only read, with message counts. Mention them only when they add context (e.g. a long support thread I followed).
      - `claude_sessions`: Claude Code sessions in the range, with the project and my prompts. Use them to say what the Claude time was spent on. Skip personal projects.
    - The `yesterday_sessions` field is the timeline. Each session includes `window_titles`, `metadata.jira_tickets`, `metadata.pr_urls`, and `duration_min`.

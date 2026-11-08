@@ -16,6 +16,26 @@ export interface SlackIdentity {
   name: string | null;
   /** `mention_patterns` from user-config.json, lowercased. Same list the `mentions` tool uses. */
   patterns: string[];
+  /**
+   * `slack.ignore_patterns` from user-config.json, compiled case-insensitive. Messages whose
+   * text matches any of them (bot posts sent under your name, integration noise) are dropped
+   * by loadMessages before any detector or digest sees them. Invalid regexes are skipped.
+   */
+  ignore?: RegExp[];
+}
+
+function compileIgnore(patterns: unknown): RegExp[] {
+  if (!Array.isArray(patterns)) return [];
+  const out: RegExp[] = [];
+  for (const p of patterns) {
+    if (typeof p !== 'string' || !p.trim()) continue;
+    try {
+      out.push(new RegExp(p, 'i'));
+    } catch {
+      // Bad user regex: skip it rather than break every Slack feature.
+    }
+  }
+  return out;
 }
 
 export function loadIdentity(): SlackIdentity {
@@ -24,7 +44,7 @@ export function loadIdentity(): SlackIdentity {
   const patterns = Array.isArray(cfg.mention_patterns)
     ? cfg.mention_patterns.filter((p): p is string => typeof p === 'string' && p.trim() !== '').map((p) => p.toLowerCase())
     : [];
-  return { name, patterns };
+  return { name, patterns, ignore: compileIgnore(cfg.slack?.ignore_patterns) };
 }
 
 /** "Jane Doe (She/Her)" → "Jane Doe". */
@@ -136,10 +156,17 @@ export function loadMessages(db: ReadonlyDb, since: number, id: SlackIdentity): 
     FROM slack_messages
     WHERE captured_at >= ?
   `).all(since) as Row[];
+  const ignore = id.ignore ?? [];
   return rows
+    .filter((r) => !ignore.some((re) => re.test(r.text)))
     .map((r) => toMessage(r, id))
     .filter((m) => m.sentAt >= since)
     .sort((a, b) => a.sentAt - b.sentAt || a.id - b.id);
+}
+
+/** How messages group into a conversation unit: channels by thread, DMs by conversation. */
+export function groupKey(m: SlackMessage): string {
+  return m.kind === 'channel' ? m.thread : m.convo;
 }
 
 export function loadMessageByHash(db: ReadonlyDb, hash: string, id: SlackIdentity): SlackMessage | null {

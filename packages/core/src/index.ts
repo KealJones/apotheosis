@@ -57,3 +57,6 @@ export * from './queries/todoList.js';
 export * from './queries/todoResolve.js';
 export * from './queries/addManualCommitment.js';
 export * from './queries/listCommitments.js';
+export * from './llm/localGuard.js';
+export * from './slack/digest.js';
+export * from './scheduledPass.js';

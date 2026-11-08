@@ -13,6 +13,7 @@ import { classifyOutbound, clipTitle, counterpartyOf, loadScan } from './slackSc
 export const slackPromise: Detector = {
   id: 'slack_promise',
   sources: ['slack_promise'],
+  usesLocalModel: true,
 
   async detect(ctx) {
     const scan = loadScan(ctx);

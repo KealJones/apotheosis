@@ -16,7 +16,7 @@ export interface OllamaChatOptions {
   /** Pass 'json' to ask Ollama to constrain output to valid JSON. */
   format?: 'json';
   /**
-   * Thinking-model toggle (qwen3.x). Omitted = the model's default, which for qwen3.5 is to
+   * Thinking-model toggle. Omitted = the model's default, which for thinking models is to
    * think: measured ~55s vs ~1s for a one-message classification. Short classifiers should
    * pass false.
    */
@@ -38,6 +38,11 @@ export interface OllamaChatOptions {
   numCtx?: number;
   /** Sampling temperature. 0 makes repeat calls on the same prompt return the same answer. */
   temperature?: number;
+  /**
+   * How long Ollama keeps the model loaded after this call ("30s", "5m", 0 = unload now).
+   * Omitted = the server default (5 minutes), which keeps several GB resident between calls.
+   */
+  keepAlive?: string | number;
 }
 
 export function getOllamaUrl(): string {
@@ -45,7 +50,7 @@ export function getOllamaUrl(): string {
 }
 
 export function getOllamaModel(): string {
-  return process.env.APOTHEOSIS_OLLAMA_MODEL ?? 'qwen3:8b';
+  return process.env.APOTHEOSIS_OLLAMA_MODEL ?? 'gemma4:e2b';
 }
 
 interface OllamaChatResponse {
@@ -89,6 +94,7 @@ export async function chat(
             }
           : {}),
         ...(opts.think !== undefined ? { think: opts.think } : {}),
+        ...(opts.keepAlive !== undefined ? { keep_alive: opts.keepAlive } : {}),
       }),
       signal: controller.signal,
     });
@@ -132,5 +138,40 @@ export async function isAvailable(
     return false;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Names of the models Ollama currently has in memory (`/api/ps`). Never throws; [] on failure. */
+export async function loadedModels(opts: { baseUrl?: string; timeoutMs?: number } = {}): Promise<string[]> {
+  const baseUrl = opts.baseUrl ?? getOllamaUrl();
+  try {
+    const res = await fetch(`${baseUrl}/api/ps`, { signal: AbortSignal.timeout(opts.timeoutMs ?? 1500) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models?: { name?: string; model?: string }[] };
+    return (data.models ?? []).map((m) => m.name ?? m.model ?? '').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Frees a model's memory right away instead of waiting out its keep_alive. Only asks when the
+ * model is actually loaded, so it never loads a model just to unload it. Returns whether it
+ * unloaded anything. Never throws.
+ */
+export async function unloadModel(model = getOllamaModel(), opts: { baseUrl?: string } = {}): Promise<boolean> {
+  const baseUrl = opts.baseUrl ?? getOllamaUrl();
+  const loaded = await loadedModels({ baseUrl });
+  if (!loaded.some((name) => name === model || name === `${model}:latest`)) return false;
+  try {
+    const res = await fetch(`${baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: 0 }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

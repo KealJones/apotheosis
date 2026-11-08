@@ -1,11 +1,13 @@
 import { getDb } from '../db.js';
 import type { ReadonlyDb } from '../commitments/types.js';
 import {
+  groupKey,
   loadIdentity,
   loadMessages,
   type ConversationKind,
   type SlackMessage,
 } from '../commitments/detectors/slackMessages.js';
+import { digestEnabled, readFreshDigest, type ThreadDigest } from '../slack/digest.js';
 
 export interface SlackActivityArgs {
   /** Unix seconds, inclusive. */
@@ -18,9 +20,14 @@ export interface SlackThread {
   channel: string | null;
   kind: ConversationKind;
   permalink: string | null;
-  /** First captured message of the thread (the root when it was captured). */
-  root: { who: string; text: string; sent_at: string };
-  mine: { text: string; sent_at: string }[];
+  /**
+   * First captured message of the thread (the root when it was captured). Omitted, along with
+   * `mine`, when an up-to-date local digest stands in for the raw text.
+   */
+  root?: { who: string; text: string; sent_at: string };
+  mine?: { text: string; sent_at: string }[];
+  /** Local-model digest (`slack.local_digest`), only when it covers every message in range. */
+  digest?: ThreadDigest;
   others: string[];
   message_count: number;
 }
@@ -47,7 +54,6 @@ export function getSlackActivity(args: SlackActivityArgs, db: ReadonlyDb = getDb
   const id = loadIdentity();
   const messages = loadMessages(db, args.since, id).filter((m) => m.sentAt <= args.until);
 
-  const groupKey = (m: SlackMessage) => (m.kind === 'channel' ? m.thread : m.convo);
   const groups = new Map<string, SlackMessage[]>();
   for (const m of messages) {
     const key = groupKey(m);
@@ -56,6 +62,7 @@ export function getSlackActivity(args: SlackActivityArgs, db: ReadonlyDb = getDb
     else groups.set(key, [m]);
   }
 
+  const useDigests = digestEnabled();
   const myThreads: SlackThread[] = [];
   const read = new Map<string, { channel: string | null; kind: ConversationKind; message_count: number }>();
 
@@ -69,14 +76,24 @@ export function getSlackActivity(args: SlackActivityArgs, db: ReadonlyDb = getDb
       continue;
     }
     const root = group[0];
-    myThreads.push({
+    const base = {
       channel: root.channel,
       kind: root.kind,
       permalink: root.permalink,
-      root: { who: root.who, text: clip(root.text, ROOT_CHARS), sent_at: iso(root.sentAt) },
-      mine: mine.map((m) => ({ text: clip(m.text, MINE_CHARS), sent_at: iso(m.sentAt) })),
       others: [...new Set(group.filter((m) => !m.fromMe).map((m) => m.who))],
       message_count: group.length,
+    };
+    // Per thread: the digest only replaces raw text when it covers the newest message here.
+    // Feature off, model never ran, or new messages since its last run all fall back to raw.
+    const stored = useDigests ? readFreshDigest(db, groupKey(root), group[group.length - 1].sentAt) : null;
+    if (stored) {
+      myThreads.push({ ...base, digest: stored.digest });
+      continue;
+    }
+    myThreads.push({
+      ...base,
+      root: { who: root.who, text: clip(root.text, ROOT_CHARS), sent_at: iso(root.sentAt) },
+      mine: mine.map((m) => ({ text: clip(m.text, MINE_CHARS), sent_at: iso(m.sentAt) })),
     });
   }
 

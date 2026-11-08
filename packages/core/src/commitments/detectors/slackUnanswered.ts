@@ -37,6 +37,7 @@ export function waitsOnMe(x: Classified, id: SlackIdentity): boolean {
 export const slackUnanswered: Detector = {
   id: 'slack_unanswered',
   sources: ['slack_unanswered'],
+  usesLocalModel: true,
 
   async detect(ctx) {
     const scan = loadScan(ctx);

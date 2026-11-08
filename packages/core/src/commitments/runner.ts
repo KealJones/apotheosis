@@ -49,6 +49,11 @@ export interface RunOptions {
   /** Unix seconds. Defaults to the wall clock. */
   now?: number;
   lookbackSeconds?: number;
+  /**
+   * Skip detectors that call the local model (on battery, under memory pressure). Their open
+   * commitments are left alone: not reconciled, and not expired for lack of fresh detection.
+   */
+  skipLocalModel?: boolean;
 }
 
 /**
@@ -68,7 +73,7 @@ export async function runDetectors(opts: RunOptions = {}): Promise<RunReport> {
     now,
     since: now - (opts.lookbackSeconds ?? DEFAULT_LOOKBACK_SECONDS),
     db: readonlyView(db),
-    cache: detectorCache(db, now),
+    cache: openDetectorCache(db, now),
   };
 
   const woken = wakeSnoozed(db, now);
@@ -76,6 +81,10 @@ export async function runDetectors(opts: RunOptions = {}): Promise<RunReport> {
   const reports: DetectorRunReport[] = [];
   const detectFailedSources: CommitmentSource[] = [];
   for (const det of dets) {
+    if (opts.skipLocalModel && det.usesLocalModel) {
+      detectFailedSources.push(...det.sources);
+      continue;
+    }
     const report: DetectorRunReport = { id: det.id, detected: 0, inserted: 0, resolved: 0, errors: [] };
     reports.push(report);
 
@@ -248,7 +257,8 @@ function expireStale(db: Db, now: number, skipSources: CommitmentSource[]): numb
  * CACHE_TTL_SECONDS first (anything that old is outside every detector's lookback anyway).
  * A hit refreshes `touched_at`, so entries a detector keeps reading stay alive.
  */
-function detectorCache(db: Db, now: number): DetectorCache {
+/** The runner's `detector_cache` store. Exported for the Slack digest, which shares it. */
+export function openDetectorCache(db: Db, now: number): DetectorCache {
   db.prepare('DELETE FROM detector_cache WHERE touched_at < ?').run(now - CACHE_TTL_SECONDS);
   const read = db.prepare('SELECT value FROM detector_cache WHERE key = ?');
   const touch = db.prepare('UPDATE detector_cache SET touched_at = ? WHERE key = ?');
