@@ -40,6 +40,10 @@ struct CaptureApp {
             exit(0)
         }
 
+        if CommandLine.arguments.contains("--smoke-slack-text") {
+            SlackTextSmokeTest.run()
+        }
+
         if CommandLine.arguments.contains("--dump-slack") {
             SlackExtractor.shared.dumpTree()
             exit(0)

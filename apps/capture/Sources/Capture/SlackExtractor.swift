@@ -244,6 +244,18 @@ final class SlackExtractor {
             }
 
             if cls.contains("c-mrkdwn__br") { text += "\n"; return }
+            if cls.contains("c-mrkdwn__quote") {
+                // Quoted text is usually someone else's words; mark it so it isn't read as the sender's.
+                let outer = text
+                text = ""
+                for child in children(el) { walk(child, depth: depth + 1) }
+                let quoted = text
+                text = outer
+                guard !quoted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                newline()
+                text += Self.quoteLines(quoted) + "\n"
+                return
+            }
             if cls.contains("c-emoji") || (r == "AXImage" && description(el).hasSuffix(" emoji")) {
                 let name = description(el).isEmpty
                     ? children(el).lazy.map(self.description).first(where: { !$0.isEmpty }) ?? ""
@@ -343,12 +355,7 @@ final class SlackExtractor {
 
         walk(item, depth: 0)
 
-        let body = text
-            .components(separatedBy: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .joined(separator: "\n")
-            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = Self.normalizeBody(text)
         guard let stamp else { return nil }
 
         let explicit = sender?.isEmpty == false
@@ -368,6 +375,23 @@ final class SlackExtractor {
             replyCount: replyCount
         )
         return (message, resolved)
+    }
+
+    /// Prefixes every line of a quote block with "> ", dropping blank edge lines.
+    static func quoteLines(_ quoted: String) -> String {
+        quoted.trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: "\n")
+            .map { "> " + $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
+    }
+
+    /// Trims each line, collapses runs of blank lines, and trims the whole body.
+    static func normalizeBody(_ raw: String) -> String {
+        raw.components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
+            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// "Thread in channel frontend (private)" → "frontend".
