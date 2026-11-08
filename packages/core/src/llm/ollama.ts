@@ -50,7 +50,7 @@ export function getOllamaUrl(): string {
 }
 
 export function getOllamaModel(): string {
-  return process.env.APOTHEOSIS_OLLAMA_MODEL ?? 'gemma4:e2b';
+  return process.env.APOTHEOSIS_OLLAMA_MODEL ?? 'gemma4:e4b';
 }
 
 interface OllamaChatResponse {

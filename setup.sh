@@ -64,7 +64,7 @@ SLACK_JSON=""
 read -rp "Enable local Slack digests (needs Ollama, runs every 20 min while plugged in)? [y/N]: " WANT_DIGEST
 if [[ "$WANT_DIGEST" =~ ^[Yy]$ ]]; then
   SLACK_JSON="\"slack\": { \"local_digest\": true },"
-  echo "Check that Ollama and the model (default gemma4:e2b) are allowed by your employer."
+  echo "Check that Ollama and the model (default gemma4:e4b) are allowed by your employer."
   echo "Then install the detector schedule: see \"Commitments and the scheduled detector runner\" in README.md."
 fi
 

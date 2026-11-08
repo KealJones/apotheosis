@@ -8,7 +8,7 @@ Apotheosis records what is on your screen and, if you turn them on, audio from y
 
 - **Check your employer's policies.** Many companies restrict screen capture, meeting recording, which AI tools and models you may use, and where work data may be stored. If this runs on a work machine, read those policies (or ask) first. If anything is unclear, don't enable it.
 - **Meeting recording is off by default, and should usually stay off.** Recording or transcribing a conversation without the consent the law requires can be a crime and can expose you to civil liability. Some places require the consent of *everyone* on a call, and you usually can't know where every participant is. Many employers also only allow recording through approved meeting tools. Only turn on `meetings.enabled` if you are sure it is legal where you and every participant are *and* allowed by your employer. `/init` and `setup.sh` ask you to confirm both before enabling it.
-- **Local AI features are off by default.** Local Slack digests (`slack.local_digest`) and the other local-model features run whatever Ollama model you configure (default `gemma4:e2b`). Make sure Ollama and that model are on your employer's approved list, or don't enable them.
+- **Local AI features are off by default.** Local Slack digests (`slack.local_digest`) and the other local-model features run whatever Ollama model you configure (default `gemma4:e4b`). Make sure Ollama and that model are on your employer's approved list, or don't enable them.
 - **Keep less.** Set `capture.retention_days` so raw captures age out instead of piling up forever.
 - **You can always turn it off.** Use Pause in the menu bar, the capture schedule, or `/capture stop`.
 
@@ -406,7 +406,7 @@ With `"slack": { "local_digest": true }` in `user-config.json` and the detector 
 
 - `/today` shows them through the `slack_digests` MCP tool, most urgent first.
 - `/standup` gets them through `standup_draft`: a thread with an up-to-date digest is sent as the digest instead of raw message text, which is fewer tokens and less Slack text handed to Claude. Any thread without one (feature off, model hasn't run, or new messages since its last run) falls back to the raw text, so standups never depend on the local model.
-- The model is `APOTHEOSIS_OLLAMA_MODEL` (default `gemma4:e2b`). Digests are a small model's notes, so treat to-dos in them as hints to check, not facts.
+- The model is `APOTHEOSIS_OLLAMA_MODEL` (default `gemma4:e4b`). Digests are a local model's notes, so treat to-dos in them as hints to check, not facts.
 
 `"slack": { "ignore_patterns": ["^Merging master into"] }` drops messages matching any of those case-insensitive regexes from every Slack feature, which is useful for bot posts sent under your name.
 

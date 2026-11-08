@@ -14,7 +14,7 @@ describe('ollama client', () => {
       delete process.env.APOTHEOSIS_OLLAMA_URL;
       delete process.env.APOTHEOSIS_OLLAMA_MODEL;
       expect(getOllamaUrl()).toBe('http://localhost:11434');
-      expect(getOllamaModel()).toBe('gemma4:e2b');
+      expect(getOllamaModel()).toBe('gemma4:e4b');
     });
 
     it('respects env var overrides', () => {
