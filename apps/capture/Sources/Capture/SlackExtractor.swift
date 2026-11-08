@@ -6,6 +6,7 @@ import CryptoKit
 struct SlackMessage {
     let channel: String?
     let sender: String
+    let senderExplicit: Bool    // true when the item had its own sender button; false when carried or unknown
     let text: String
     let dateBucket: String?     // Slack's date separator label, e.g. "Today", "Thursday, June 4th"
     let timeLabel: String?      // Slack's per-message timestamp label, e.g. "11:09 AM"
@@ -14,7 +15,7 @@ struct SlackMessage {
     let replyCount: Int?        // Thread roots: the "21 replies" bar
 
     func with(channel: String?) -> SlackMessage {
-        SlackMessage(channel: channel, sender: sender, text: text, dateBucket: dateBucket, timeLabel: timeLabel,
+        SlackMessage(channel: channel, sender: sender, senderExplicit: senderExplicit, text: text, dateBucket: dateBucket, timeLabel: timeLabel,
                      permalink: permalink, reactions: reactions, replyCount: replyCount)
     }
 }
@@ -90,6 +91,7 @@ final class SlackExtractor {
                 capturedAt: now,
                 channel: msg.channel,
                 sender: msg.sender,
+                senderExplicit: msg.senderExplicit,
                 text: msg.text,
                 dateBucket: msg.dateBucket,
                 timeLabel: msg.timeLabel,
@@ -148,20 +150,25 @@ final class SlackExtractor {
         return messages
     }
 
-    /// One message per virtual-list item that has a timestamp link. Sender carries
-    /// forward across Slack's run of consecutive messages from the same person.
+    /// One message per virtual-list item that has a timestamp link.
+    ///
+    /// Slack shows the sender button only on the first message of a run from one person;
+    /// later messages in the run get a compact gutter instead. The sender is carried only
+    /// into such a continuation, and only from the item directly above it. Anything else
+    /// (day divider, "new messages" line, the run's first message scrolled out of the
+    /// virtual list, or a first-of-run item whose button hasn't rendered yet) breaks the
+    /// chain, and the message is stored as "(unknown)" rather than guessed.
     private func parseView(_ view: AXUIElement) -> [SlackMessage] {
         var messages: [SlackMessage] = []
-        var sender: String?
+        var carried: String?
         var visited = 0
         func walk(_ el: AXUIElement, depth: Int) {
             visited += 1
             guard visited < 20000, depth < 40 else { return }
             if classes(el).contains("c-virtual_list__item") {
-                if let m = parseItem(el, carriedSender: sender) {
-                    sender = m.sender
-                    messages.append(m)
-                }
+                let item = parseItem(el, carriedSender: carried)
+                carried = item?.runSender
+                if let m = item?.message { messages.append(m) }
                 return
             }
             for child in children(el) { walk(child, depth: depth + 1) }
@@ -170,8 +177,18 @@ final class SlackExtractor {
         return messages
     }
 
-    private func parseItem(_ item: AXUIElement, carriedSender: String?) -> SlackMessage? {
+    /// Continuation messages replace the sender header with a compact gutter holding the
+    /// timestamp: `p-message_pane_message__compact_timestamp` in the main pane,
+    /// `p-thread_compact_gutter_generic` in the thread pane.
+    private static func isContinuationGutter(_ cls: [String]) -> Bool {
+        cls.contains { $0.hasPrefix("p-message_pane_message__compact_timestamp") || $0.hasPrefix("p-thread_compact_gutter_generic") }
+    }
+
+    /// `nil` for items that aren't messages (dividers, composer). `runSender` is who the
+    /// next item may inherit as sender; `message` is nil when the item has no body text.
+    private func parseItem(_ item: AXUIElement, carriedSender: String?) -> (message: SlackMessage?, runSender: String?)? {
         var sender: String?
+        var continuation = false
         var stamp: String?
         var permalink: String?
         var reactions: [String] = []
@@ -204,6 +221,7 @@ final class SlackExtractor {
             let r = role(el)
 
             if cls.contains("c-message__sender_button") { sender = title(el); return }
+            if Self.isContinuationGutter(cls) { continuation = true }
             if cls.contains("c-timestamp") {
                 stamp = description(el)
                 permalink = url(el)
@@ -331,12 +349,17 @@ final class SlackExtractor {
             .joined(separator: "\n")
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let stamp, !body.isEmpty else { return nil }
+        guard let stamp else { return nil }
+
+        let explicit = sender?.isEmpty == false
+        let resolved = explicit ? sender : (continuation ? carriedSender : nil)
+        guard !body.isEmpty else { return (nil, resolved) }
 
         let (date, time) = parseTimestamp(stamp)
-        return SlackMessage(
+        let message = SlackMessage(
             channel: nil,
-            sender: sender ?? carriedSender ?? "(unknown)",
+            sender: resolved ?? "(unknown)",
+            senderExplicit: explicit,
             text: body,
             dateBucket: date,
             timeLabel: time,
@@ -344,6 +367,7 @@ final class SlackExtractor {
             reactions: reactions.isEmpty ? nil : reactions.joined(separator: ", "),
             replyCount: replyCount
         )
+        return (message, resolved)
     }
 
     /// "Thread in channel frontend (private)" → "frontend".
@@ -501,7 +525,7 @@ final class SlackExtractor {
         let app = AXUIElementCreateApplication(slack.processIdentifier)
         let title = (axAttribute(app, kAXFocusedWindowAttribute) as! AXUIElement?).map(self.title)
         for m in extractMessages(root: app, channel: parseChannel(fromWindowTitle: title)) {
-            print("--- [\(m.channel ?? "?")] \(m.sender) | \(m.dateBucket ?? "") \(m.timeLabel ?? "") | reactions=\(m.reactions ?? "-") replies=\(m.replyCount.map(String.init) ?? "-")")
+            print("--- [\(m.channel ?? "?")] \(m.sender)\(m.senderExplicit ? "" : " (carried)") | \(m.dateBucket ?? "") \(m.timeLabel ?? "") | reactions=\(m.reactions ?? "-") replies=\(m.replyCount.map(String.init) ?? "-")")
             print("    \(m.permalink ?? "no permalink")")
             print(m.text)
         }

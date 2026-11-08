@@ -124,6 +124,9 @@ final class Store {
         // Migration: Slack reactions and thread reply counts (added after the table shipped)
         sqlite3_exec(db, "ALTER TABLE slack_messages ADD COLUMN reactions TEXT;", nil, nil, nil)
         sqlite3_exec(db, "ALTER TABLE slack_messages ADD COLUMN reply_count INTEGER;", nil, nil, nil)
+        // Migration: 1 when the sender came from the message's own sender button, 0 when it was
+        // carried from the message above or unknown. NULL for rows captured before this column.
+        sqlite3_exec(db, "ALTER TABLE slack_messages ADD COLUMN sender_explicit INTEGER;", nil, nil, nil)
 
         // Migration: track how many times a file_modified row was collapsed for the same day
         sqlite3_exec(db, "ALTER TABLE context_events ADD COLUMN change_count INTEGER DEFAULT 1;", nil, nil, nil)
@@ -350,6 +353,7 @@ final class Store {
         capturedAt: Int64,
         channel: String?,
         sender: String,
+        senderExplicit: Bool,
         text: String,
         dateBucket: String?,
         timeLabel: String?,
@@ -361,17 +365,23 @@ final class Store {
         var inserted = false
         queue.sync {
             // Re-seen messages refresh what can change: edits, reactions, reply count, and the
-            // conversation label (older captures mislabeled thread-pane messages).
+            // conversation label (older captures mislabeled thread-pane messages). A sender read
+            // from the message's own button replaces one that was carried, unknown, or captured
+            // before sender_explicit existed, so misattributed rows heal when seen again.
             let sql = """
             INSERT INTO slack_messages
-              (captured_at, channel, sender, text, date_bucket, time_label, permalink, reactions, reply_count, dedupe_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (captured_at, channel, sender, text, date_bucket, time_label, permalink, reactions, reply_count,
+               dedupe_hash, sender_explicit)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_hash) DO UPDATE SET
               channel = excluded.channel, text = excluded.text, time_label = excluded.time_label,
-              reactions = excluded.reactions, reply_count = excluded.reply_count
+              reactions = excluded.reactions, reply_count = excluded.reply_count,
+              sender = CASE WHEN excluded.sender_explicit = 1 THEN excluded.sender ELSE sender END,
+              sender_explicit = MAX(COALESCE(sender_explicit, 0), excluded.sender_explicit)
             WHERE channel IS NOT excluded.channel OR text IS NOT excluded.text
               OR time_label IS NOT excluded.time_label OR reactions IS NOT excluded.reactions
               OR reply_count IS NOT excluded.reply_count
+              OR (excluded.sender_explicit = 1 AND (sender_explicit IS NOT 1 OR sender IS NOT excluded.sender))
             RETURNING (captured_at = ?1);
             """
             var stmt: OpaquePointer?
@@ -391,6 +401,7 @@ final class Store {
             bindText(stmt, 8, reactions)
             if let replyCount { sqlite3_bind_int64(stmt, 9, Int64(replyCount)) } else { sqlite3_bind_null(stmt, 9) }
             sqlite3_bind_text(stmt, 10, (dedupeHash as NSString).utf8String, -1, nil)
+            sqlite3_bind_int(stmt, 11, senderExplicit ? 1 : 0)
 
             // A row comes back for an insert or a changed update; only a fresh insert keeps
             // this capture's timestamp, so that's what counts as new.
