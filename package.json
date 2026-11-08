@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Apotheosis — personal activity-capture system (capture daemon + MCP server + shared core).",
+  "license": "MIT",
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
