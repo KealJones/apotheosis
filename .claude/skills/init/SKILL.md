@@ -37,25 +37,35 @@ Only needs to be run once.
    case-insensitive regex fragment in `work_patterns`, e.g. `github\\.com/my-org`,
    `\\.mycompany\\.com`. Triage treats pages that match as work.
 
-5. **Build the MCP server:**
+5. **Retention, meeting recording, and local Slack digests.** Point the user at the "Read this first" section of `README.md`, then:
+   - Ask: "How many days of raw captures should be kept? (recommended: 90, blank = forever)". If they give a number, set `capture.retention_days` to it.
+   - Ask whether they want meeting recording. Explain it records mic and system audio, that some places require every participant's consent, and that many employers only allow approved recording tools. Default is **no**.
+   - Only if they want it, ask them to confirm both, separately and explicitly:
+     1. "Have you confirmed that recording meetings is legal where you and the other participants are?"
+     2. "Have you confirmed your employer (or whoever owns this machine) allows it?"
+   - Enable it only on a clear yes to both: write `"meetings": { "enabled": true, "mode": "ask" }`. Never set `"mode": "auto"` during setup. Anything else (no, unsure, skipped) writes `"meetings": { "enabled": false }` and tells them they can change it later in `user-config.json`.
+   - Ask whether they want **local Slack digests** (default **no**). Explain: every 20 minutes a local Ollama model summarizes Slack conversations you're active in (summary, urgency, your to-dos, open items) so `/today` and `/standup` get short notes instead of raw messages. It needs Ollama and a few GB of memory while it runs; runs are skipped on battery, under memory pressure, and when there's nothing new, and the model is unloaded after each run. Remind them to check that Ollama and the model are allowed by their employer (default model: `gemma4:e2b`, override with `APOTHEOSIS_OLLAMA_MODEL`).
+   - On yes: set `"slack": { "local_digest": true }`, check `ollama list` for the model and offer `ollama pull gemma4:e2b` if it's missing, and install the detector schedule after step 9 (see "Commitments and the scheduled detector runner" in `README.md`). On no: leave `slack.local_digest` unset; `/standup` keeps using raw Slack text.
+
+6. **Build the MCP server:**
    ```bash
    pnpm install && pnpm --filter @apotheosis/core build && pnpm --filter apotheosis-mcp build
    ```
    If this fails, stop and show the error.
 
-6. **Create the data/live convenience symlink:**
+7. **Create the data/live convenience symlink:**
    ```bash
    mkdir -p data
    ln -sf ~/Library/Application\ Support/apotheosis data/live
    ```
 
-7. **Build and codesign the capture daemon:**
+8. **Build and codesign the capture daemon:**
    ```bash
    cd apps/capture && ./build.sh
    ```
    Always use `./build.sh`, never bare `swift build` — it codesigns the binary with a stable identity so macOS preserves the Screen Recording permission across rebuilds. Swift builds can take a minute on first run.
 
-8. **Install the Launch Agent.** Generate the plist from the template and install it:
+9. **Install the Launch Agent.** Generate the plist from the template and install it:
    ```bash
    BINARY_PATH="$(pwd)/apps/capture/.build/arm64-apple-macosx/debug/Capture"
    mkdir -p ~/Library/Logs/apotheosis
@@ -64,13 +74,13 @@ Only needs to be run once.
      > ~/Library/LaunchAgents/com.kealjones.apotheosis.capture.plist
    ```
 
-9. **Start the daemon:**
+10. **Start the daemon:**
    ```bash
    launchctl load ~/Library/LaunchAgents/com.kealjones.apotheosis.capture.plist
    ```
    Verify it started with `pgrep -f 'debug/Capture'`.
 
-10. **Report success and explain required permissions:**
+11. **Report success and explain required permissions:**
     ```
     Setup complete. The capture daemon is running and will auto-start on login.
 

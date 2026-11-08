@@ -37,12 +37,46 @@ fi
 read -rp "Display name (e.g. First Last): " DISPLAY_NAME
 FIRST_NAME=$(echo "$DISPLAY_NAME" | awk '{print $1}')
 
+echo ""
+echo "Before continuing, read the \"Read this first\" section of README.md."
+read -rp "Days of raw captures to keep (recommended 90, blank = forever): " RETENTION_DAYS
+CAPTURE_JSON=""
+if [[ "$RETENTION_DAYS" =~ ^[1-9][0-9]*$ ]]; then
+  CAPTURE_JSON="\"capture\": { \"retention_days\": $RETENTION_DAYS },"
+fi
+
+# Meeting recording stays off unless the user explicitly confirms both questions.
+MEETINGS_ENABLED=false
+read -rp "Enable meeting recording (mic + system audio)? [y/N]: " WANT_MEETINGS
+if [[ "$WANT_MEETINGS" =~ ^[Yy]$ ]]; then
+  echo "Some places require every participant's consent to record, and many employers only allow approved recording tools."
+  read -rp "Have you confirmed recording is legal where you and the other participants are? [y/N]: " LAW_OK
+  read -rp "Have you confirmed your employer (or whoever owns this machine) allows it? [y/N]: " EMPLOYER_OK
+  if [[ "$LAW_OK" =~ ^[Yy]$ && "$EMPLOYER_OK" =~ ^[Yy]$ ]]; then
+    MEETINGS_ENABLED=true
+  else
+    echo "Leaving meeting recording off. You can change it later in user-config.json."
+  fi
+fi
+
+# Local Slack digests are opt-in: a local Ollama model summarizes active Slack conversations.
+SLACK_JSON=""
+read -rp "Enable local Slack digests (needs Ollama, runs every 20 min while plugged in)? [y/N]: " WANT_DIGEST
+if [[ "$WANT_DIGEST" =~ ^[Yy]$ ]]; then
+  SLACK_JSON="\"slack\": { \"local_digest\": true },"
+  echo "Check that Ollama and the model (default gemma4:e2b) are allowed by your employer."
+  echo "Then install the detector schedule: see \"Commitments and the scheduled detector runner\" in README.md."
+fi
+
 cat > "$DATA_DIR/user-config.json" <<EOF
 {
   "github_username": "$GH_USER",
   "display_name": "$DISPLAY_NAME",
   "mention_patterns": ["@$GH_USER", "@$(echo "$FIRST_NAME" | tr '[:upper:]' '[:lower:]')", "$FIRST_NAME "],
-  "work_patterns": []
+  "work_patterns": [],
+  $CAPTURE_JSON
+  $SLACK_JSON
+  "meetings": { "enabled": $MEETINGS_ENABLED, "mode": "ask" }
 }
 EOF
 echo "Wrote user config to: $DATA_DIR/user-config.json"
