@@ -2,14 +2,31 @@
 
 ADHD-friendly work tracker that runs silently in the background, captures what you're doing, and turns it into standups, timelines, and a portfolio of your impact — all local, all private.
 
+## Read this first: safety, legality, and your responsibility
+
+Apotheosis records what is on your screen and, if you turn them on, audio from your meetings and local AI summaries of your Slack conversations. Everything stays on your machine, but "local" does not make it automatically legal or allowed.
+
+- **Check your employer's policies.** Many companies restrict screen capture, meeting recording, which AI tools and models you may use, and where work data may be stored. If this runs on a work machine, read those policies (or ask) first. If anything is unclear, don't enable it.
+- **Meeting recording is off by default, and should usually stay off.** Recording or transcribing a conversation without the consent the law requires can be a crime and can expose you to civil liability. Some places require the consent of *everyone* on a call, and you usually can't know where every participant is. Many employers also only allow recording through approved meeting tools. Only turn on `meetings.enabled` if you are sure it is legal where you and every participant are *and* allowed by your employer. `/init` and `setup.sh` ask you to confirm both before enabling it.
+- **Local AI features are off by default.** Local Slack digests (`slack.local_digest`) and the other local-model features run whatever Ollama model you configure (default `gemma4:e2b`). Make sure Ollama and that model are on your employer's approved list, or don't enable them.
+- **Keep less.** Set `capture.retention_days` so raw captures age out instead of piling up forever.
+- **You can always turn it off.** Use Pause in the menu bar, the capture schedule, or `/capture stop`.
+
+### Disclaimer and assumption of risk
+
+Apotheosis is provided "as is", without warranty of any kind, under the [MIT License](LICENSE). The authors and contributors are not liable for any claim, damages, or other liability arising from its use, including use that violates recording, wiretapping, eavesdropping, privacy, or data-protection laws, or an employer's policies.
+
+**You are solely responsible for how you use this software.** By installing it or enabling any of its features, you agree that you have checked and will follow the laws and policies that apply to you and to everyone whose words, images, or messages it may capture, including obtaining any consent those laws require, and that you assume all risk of doing so. Nothing in this project is legal advice. If you are unsure whether a use is legal or allowed, don't do it, or ask a lawyer.
+
 ## Getting started
 
 ### Prerequisites
 
-- macOS 14+ (capture daemon uses ScreenCaptureKit + Accessibility API)
-- Node.js >= 22
+- macOS 14+ (capture daemon uses ScreenCaptureKit + Accessibility API); meeting recording and transcription need macOS 26+
+- Node.js >= 24
 - Swift toolchain (Xcode or `swift` CLI)
 - GitHub CLI (`gh`) authenticated, for PR tracking
+- [Ollama](https://ollama.com) (optional), only for the local-model features (meeting summaries, Slack digests and classification)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 
 ### Quick setup
@@ -91,7 +108,7 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
                                           v
                           +-------------------------------+
                           |    Capture Daemon (Swift)     |
-                          |    Menu bar app, 30s ticks    |
+                          |    Menu bar app, 15s ticks    |
                           +-------------------------------+
                                     |         |
                           Screenshot taken    Active app/window
@@ -135,6 +152,7 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
                           |   - ideas (quick captures)    |
                           |   - standups (logged)         |
                           |   - commitments (mentions/PRs)|
+                          |   - meetings, slack_messages  |
                           +-------------------------------+
                                           |
                                Shared via WAL mode
@@ -146,7 +164,7 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
                           |   via stdio transport         |
                           +-------------------------------+
                           |                               |
-                          |  Tools (14):                  |
+                          |  Tools (33), including:       |
                           |  - standup_draft              |
                           |  - summarize_window           |
                           |  - recent_activity            |
@@ -154,11 +172,13 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
                           |  - delete_samples             |
                           |  - log_idea / list_ideas      |
                           |  - log_standup                |
-                          |  - mentions                   |
+                          |  - mentions / slack_search    |
+                          |  - slack_digests              |
+                          |  - todo_* / run_detectors     |
+                          |  - meetings (list/get/search) |
                           |  - link_evidence              |
                           |  - create_project/get_project |
                           |  - code_time (git log)        |
-                          |  - ollama_status              |
                           |                               |
                           |  Integrations:                |
                           |  - GitHub (gh CLI)            |
@@ -168,7 +188,7 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
                                           |
                                           v
                           +-------------------------------+
-                          |   Claude Code Skills (7)      |
+                          |   Claude Code Skills (10)      |
                           |   Slash commands that         |
                           |   orchestrate MCP tools       |
                           +-------------------------------+
@@ -178,8 +198,11 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
                           |  /whats-next - next action    |
                           |  /follow-ups - mentions & PRs |
                           |  /log-idea  - capture ideas   |
-                          |  /cleanup-screenshots         |
+                          |  /cleanup-samples             |
                           |  /capture   - daemon control  |
+                          |  /evidence  - review evidence |
+                          |  /init      - first-time setup|
+                          |  /calendar-correlation        |
                           |                               |
                           +-------------------------------+
                                           |
@@ -193,21 +216,22 @@ Apotheosis has three main components: a **capture daemon** (Swift menu bar app) 
 
 ### Capture daemon (`apps/capture/`)
 
-A Swift macOS menu bar app that captures your screen every 30 seconds.
+A Swift macOS menu bar app that captures your screen every 15 seconds by default (`capture.interval_seconds`).
 
 | File | Purpose |
 |------|---------|
 | `App.swift` | Menu bar UI — camera icon, pause/resume, "What did I do today?" query |
-| `CaptureLoop.swift` | 30-second timer, coordinates the full capture pipeline |
+| `CaptureLoop.swift` | Interval timer (15s default), coordinates the full capture pipeline |
+| `CaptureSchedule.swift` | Reads the `capture.*` schedule (interval, days, hours, idle) from `user-config.json` |
 | `ActiveContext.swift` | Rich context via Accessibility API: app bundle, window title, document path, selected text, focused element role/description, all visible window titles; browser URL via AppleScript |
 | `SkipPatterns.swift` | Configurable skip list loaded from `skip-patterns.json` — bundle blocklist, bundle keywords, window title patterns |
 | `IdleGate.swift` | Skips capture when user is idle > 5 minutes (no mouse/keyboard) |
 | `OCR.swift` | Apple Vision framework OCR on background queue, deletes screenshot after extraction |
 | `Redactor.swift` | Scrubs secrets from every text field before `Store` writes it |
 | `Retention.swift` | Sweeps leftover screenshots; applies optional `capture.retention_days` |
-| `Store.swift` | SQLite wrapper — inserts samples, updates OCR text and vision summaries |
-| `VisionSummarizer.swift` | Ollama vision integration (currently disabled) — sends screenshots to a local LLM for richer summaries |
-| `OllamaConfig.swift` | Ollama endpoint, model, prompt, timeout configuration |
+| `Store.swift` | SQLite wrapper: inserts samples, updates OCR text, stores Slack messages and meetings |
+| `SlackExtractor.swift` | Structured Slack message extraction from the accessibility tree |
+| `Meeting*.swift`, `AudioSources.swift`, `EchoFilter.swift` | Opt-in meeting detection, consent prompt, and on-device transcription (macOS 26+) |
 
 **Capture flow per tick:**
 1. Check if paused, outside the `capture.*` schedule, or idle -> skip if so
@@ -227,45 +251,62 @@ A Swift macOS menu bar app that captures your screen every 30 seconds.
 
 ### MCP server (`apps/mcp/`)
 
-A Node.js MCP server that reads the SQLite database and exposes 14 tools to Claude Code.
+A Node.js MCP server that reads the SQLite database and exposes 33 tools to Claude Code.
 
 | File | Purpose |
 |------|---------|
 | `server.ts` | MCP server setup, registers all tools with Zod schemas |
-| `db.ts` | SQLite connection (better-sqlite3), WAL mode, schema migrations |
+| `tools/*.ts` | One module per tool, each exporting its name, description, Zod schema and handler |
+
+The shared core in `packages/core/src` holds the rest:
+
+| File | Purpose |
+|------|---------|
+| `db.ts` | SQLite connection (`node:sqlite`), WAL mode, schema migrations |
 | `summarize.ts` | Core data processing: groups samples into `WorkBlock`s (by app+window, 10min gap) and `Session`s (by app, 5min gap), extracts structured metadata (JIRA tickets, PR URLs, file paths) |
 
 **Tools:**
 
 | Tool | What it does |
 |------|-------------|
-| `standup_draft` | Assembles yesterday's sessions + blocks, pending follow-ups, open PRs, recent ideas |
+| `standup_draft` | Assembles yesterday's work blocks, Slack threads (as local digests when available), Claude Code sessions, pending follow-ups, open PRs, recent ideas |
 | `summarize_window` | Groups samples in a time range into work blocks |
-| `recent_activity` | Returns raw samples with all fields for a time range |
-| `triage_samples` | Scores sample clusters as high/medium/low signal for cleanup |
+| `recent_activity` | Returns raw samples with OCR excerpt and accessibility context for a time range |
+| `context_timeline` | App switches, window focus/title changes and file modifications between samples |
+| `triage_samples` | Scores untagged sample clusters as high/medium/low signal for cleanup |
 | `delete_samples` | Deletes samples by ID (refuses evidence-tagged ones) |
 | `log_idea` / `list_ideas` | Quick-capture and retrieve ideas |
 | `log_standup` | Saves a standup to the database |
 | `mentions` | Searches OCR text for @-mentions of your name |
-| `get_inbox` | Mentions, PR review requests (`gh`), and top ranked to-dos in one call |
+| `slack_search` | Searches structured Slack messages (sender, channel, thread) extracted by the daemon |
+| `slack_digests` | Local-model digests of active Slack conversations, most urgent first (needs `slack.local_digest`) |
+| `get_inbox` | Mentions, PR review requests (`gh`), and open follow-ups in one call |
 | `link_evidence` | Tags samples as evidence for a project |
 | `create_project` / `get_project` | Manage portfolio project entries |
-| `code_time` | Analyzes git log for time-on-code metrics |
-| `ollama_status` | Checks/starts Ollama (for vision pipeline) |
+| `code_time` | Commits plus estimated active time for a git repo |
+| `todo_list` / `todo_add` / `todo_resolve` / `todo_snooze` | Ranked commitments ledger: list, add manually, resolve (done / dismissed / not a thing), snooze |
+| `run_detectors` | Forces a detector pass now: commitment detectors, Slack digest refresh (if enabled), then unloads the local model |
+| `list_meetings` / `get_meeting` / `search_meetings` | Browse, fetch and full-text search meeting transcripts |
+| `summarize_meeting` | Structured meeting summary via a local Ollama model |
+| `delete_meeting` | Deletes a meeting, its segments and any leftover audio |
+| `list_uncorrelated_meetings` / `link_meeting_calendar_event` | Match meetings to Google Calendar events |
+| `evidence_report` | Compact evidence payload for reviews, promo packets and brag docs |
+| `review_status` | Scores evidence against the configured leveling guide (local Ollama model) |
+| `log_usage` / `usage_stats` | Track and report MCP tool and skill usage |
 
 **Data processing pipeline (`summarize.ts`):**
 
 ```
-Raw samples (one per 30s capture, ~2880/day)
+Raw samples (one per capture tick)
     |
     v  groupIntoBlocks()
-Work blocks (~268/day)
+Work blocks
   - Grouped by exact app_bundle + window_title
   - Max 10-minute gap between consecutive samples
   - Contains: time range, top OCR words, OCR excerpt
     |
     v  groupIntoSessions()
-Sessions (~20-30/day)
+Sessions
   - Grouped by app_bundle only (ignores window title)
   - Max 5-minute gap between consecutive blocks
   - Contains: distinct window titles, URLs, JIRA tickets,
@@ -295,10 +336,10 @@ Both bind to `127.0.0.1:4317` (localhost only — this is a personal local tool 
 
 - `/` — Today at a glance: sample count, top apps, current project, active hours, an editable standup panel, and Today's To-Do (the ranked open commitments list)
 - `/commitments` - Full commitment ledger: filter by source and status, one-click Done / Snooze / Not a thing / Open source on open or snoozed rows, and a dismissed-history view that distinguishes a tagged "not a thing" from a plain dismiss
-- `/timeline` — Scrollable timeline of today's activity, grouped into work sessions, with screenshots and OCR text
+- `/timeline`: Scrollable timeline of today's activity, grouped into work sessions, with OCR text
 - `/standups` — Log standups: browse past standups, generate a draft for any date, save new entries
 - `/projects` — Portfolio of past projects with tagged evidence, related PRs, and time-spent sparklines
-- `/meetings` — Meeting transcripts and summaries (macOS 26+ with `meetings.enabled = true`): list meetings, view transcript and action items, summarize with Ollama
+- `/meetings`: Meeting transcripts and summaries (macOS 26+ with `meetings.enabled = true`): list meetings, view transcript and action items, summarize with the local Ollama model
 - `/analytics` — Charts: active hours per day, time by app/project, context-switch rate, coding/meeting/Slack time, AI tool usage
 - `/review` — Year-to-date leveling rubric, evidence scoring, and promo packet drafting. Ships with a generic example rubric in `config/`; drop your company's `promo-packet.yaml` and ladder into `~/Library/Application Support/apotheosis/config/` to use your own (it wins over the example and stays out of git). `scripts/gen-leveling-yaml.mjs` converts a CSV ladder export.
 - `/db` — Raw SQL sandbox (SELECT only, read-only connection, LIMIT 1000 enforced)
@@ -325,7 +366,13 @@ The dashboard is disabled by default (`RunAtLoad = false` in the plist) — enab
 
 #### Commitments (`/commitments`) and the scheduled detector runner
 
-`/` and `/commitments` both read the `commitments` table directly and never call `gh` or Ollama themselves -- detection happens out of band, on a schedule, via `packages/core/scripts/run-detectors.mjs` (a thin wrapper around `runDetectors()`, the same function the `run_detectors` MCP tool calls on demand).
+`/` and `/commitments` both read the `commitments` table directly and never call `gh` or Ollama themselves -- detection happens out of band, on a schedule, via `packages/core/scripts/run-detectors.mjs`. It calls `runScheduledPass()`, the same function the `run_detectors` MCP tool calls on demand. Each pass:
+
+1. Runs the commitment detectors (GitHub, git, standups, ideas, meetings, and the Slack detectors that use the local model).
+2. If `slack.local_digest` is on, refreshes the local Slack digests (below).
+3. Unloads the local model so it doesn't stay in memory until the next pass.
+
+Local-model work is skipped on a scheduled pass when the laptop is on battery or macOS reports memory pressure, and it is incremental: Slack classifications are cached per message and digests per conversation, so a pass with no new Slack activity makes no model calls and never loads the model. The `run_detectors` tool ignores the battery and memory guard because you asked for it explicitly.
 
 Run it manually any time:
 
@@ -351,7 +398,17 @@ To disable it later:
 launchctl unload ~/Library/LaunchAgents/com.kealjones.apotheosis.detectors.plist
 ```
 
-The plist uses `StartInterval = 1200` (every 20 minutes) rather than a tight loop: the Slack detectors call a local Ollama model per candidate message and the GitHub detectors shell out to `gh`, so running much more often than that buys little freshness for real added load. It's still frequent enough that Today's To-Do feels current within a workday. Like the web server's LaunchAgent, this one is disabled by default (`RunAtLoad = false`) -- enable it only if you want detection running continuously instead of triggering it by hand (`pnpm --filter @apotheosis/core run detect`, or the `run_detectors` MCP tool from a Claude Code session).
+The plist uses `StartInterval = 1200` (every 20 minutes): frequent enough that `/today` and the to-do list feel current within a workday, without running `gh` and the local model constantly. The schedule isn't installed by default; install it only if you want detection running continuously instead of triggering it by hand (`pnpm --filter @apotheosis/core run detect`, or the `run_detectors` MCP tool).
+
+#### Local Slack digests (opt-in)
+
+With `"slack": { "local_digest": true }` in `user-config.json` and the detector schedule installed, each pass has the local model write a short digest of every Slack conversation you're active in from the last few days (threads you posted in, plus DMs): a one or two sentence summary, urgency, your to-dos, and open items. A conversation is only re-digested when its messages change.
+
+- `/today` shows them through the `slack_digests` MCP tool, most urgent first.
+- `/standup` gets them through `standup_draft`: a thread with an up-to-date digest is sent as the digest instead of raw message text, which is fewer tokens and less Slack text handed to Claude. Any thread without one (feature off, model hasn't run, or new messages since its last run) falls back to the raw text, so standups never depend on the local model.
+- The model is `APOTHEOSIS_OLLAMA_MODEL` (default `gemma4:e2b`). Digests are a small model's notes, so treat to-dos in them as hints to check, not facts.
+
+`"slack": { "ignore_patterns": ["^Merging master into"] }` drops messages matching any of those case-insensitive regexes from every Slack feature, which is useful for bot posts sent under your name.
 
 #### Chat (`/chat`)
 
@@ -371,12 +428,15 @@ Skills are slash commands that orchestrate MCP tools into workflows.
 
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
-| `/standup` | Manual | Two-pass: calls `summarize_window` for timeline context, then `standup_draft` for structured data. Drafts Yesterday/Today/Blockers prose. Offers to log and clean up. |
+| `/standup` | Manual | Two-pass: calls `summarize_window` for timeline context, then `standup_draft` for structured data. Drafts Yesterday/Today/Blockers prose and offers to log it. |
 | `/today` | Manual | Calls `summarize_window` for today, formats as a timeline with merged blocks |
-| `/whats-next` | Auto (SessionStart) | Checks PRs, mentions, ideas. Recommends one next action. |
+| `/whats-next` | Manual | Checks PRs, mentions, ideas. Recommends one next action. |
 | `/follow-ups` | Manual | Reviews pending @-mentions and PR review requests |
 | `/log-idea` | Manual | Captures an idea, checks for duplicates |
-| `/cleanup-screenshots` | Manual | Walks through sample clusters, lets you tag as evidence/keep/delete |
+| `/cleanup-samples` | Manual | Walks through sample clusters, lets you tag as evidence/keep/delete |
+| `/evidence` | Manual | Drafts a brag doc, promo packet or self-assessment from standups, projects, AI usage and Slack recognition |
+| `/init` | Manual | First-time setup |
+| `/calendar-correlation` | Periodic | Matches captured meetings to Google Calendar events (run via `/loop` or a scheduled task) |
 | `/capture` | Manual | Start, stop, or check status of the capture daemon |
 
 ### Hooks (`.claude/settings.json`)
@@ -387,8 +447,8 @@ Skills are slash commands that orchestrate MCP tools into workflows.
 
 ### Prerequisites
 
-- macOS (capture daemon uses ScreenCaptureKit + Accessibility API)
-- Node.js >= 22
+- macOS 14+ (capture daemon uses ScreenCaptureKit + Accessibility API)
+- Node.js >= 24
 - Swift toolchain (Xcode or swift CLI)
 - GitHub CLI (`gh`) — for PR review tracking
 - Screen Recording permission granted to the capture app
@@ -455,13 +515,13 @@ claude mcp list
    ```
    /standup
    ```
-   This generates yesterday's standup, offers to log it, and optionally cleans up old screenshots.
+   This generates yesterday's standup and offers to log it.
 
 3. **Check what needs attention:**
    ```
    /whats-next
    ```
-   This runs automatically when you open Claude Code in this directory (via the SessionStart hook), but you can run it anytime.
+   Run it anytime you want a single recommended next action.
 
 ## Daily workflow
 
@@ -469,10 +529,10 @@ claude mcp list
 |---------|-------------|-------------|
 | `/standup` | Each morning | Draft standup from yesterday's captures |
 | `/today` | Anytime | Timeline of what you've done so far today |
-| `/whats-next` | Auto on session start | Single recommended next action |
+| `/whats-next` | Anytime | Single recommended next action |
 | `/log-idea <text>` | Anytime | Quick-capture an idea into the inbox |
 | `/follow-ups` | When you have a moment | Review pending @mentions + PR reviews |
-| `/cleanup-screenshots [date]` | Weekly-ish | Triage screenshots: evidence / keep / delete |
+| `/cleanup-samples [date]` | Weekly-ish | Triage samples: evidence / keep / delete |
 | `/capture` | When needed | Start, stop, or check capture daemon |
 
 ## Data
@@ -482,7 +542,7 @@ All data stays on your Mac. Nothing is sent anywhere.
 | Location | Contents |
 |----------|----------|
 | `~/Library/Application Support/apotheosis/apotheosis.db` | SQLite database shared between capture daemon and MCP server |
-| `~/Library/Application Support/apotheosis/screenshots/` | Screenshot JPEGs organized by date (deleted after OCR by default) |
+| `~/Library/Application Support/apotheosis/screenshots/` | Screenshot JPEGs organized by date (deleted right after OCR, so normally empty) |
 | `~/Library/Application Support/apotheosis/skip-patterns.json` | Configurable skip patterns for sensitive apps/windows |
 
 ### Database tables
@@ -495,6 +555,9 @@ All data stays on your Mac. Nothing is sent anywhere.
 | `ideas` | Quick-captured ideas with body, source, optional clustering |
 | `standups` | Logged standups with yesterday/today/blockers sections |
 | `commitments` | Detected follow-up-worthy items (mentions, PR reviews, promises, etc.) with status tracking |
+| `context_events` | App switches, window focus/title changes and file modifications between samples |
+| `slack_messages` | Structured Slack messages extracted from the accessibility tree |
+| `meetings` / `meeting_segments` | Opt-in meeting records, transcripts, summaries and action items |
 
 ## Privacy and security
 
@@ -502,8 +565,8 @@ All data stays on your Mac. Nothing is sent anywhere.
 - **Sensitive app skipping.** The capture daemon skips 1Password, banking apps, and other sensitive bundles. Window-title patterns (`.env`, `credentials`, `.pem`, `.key`, SSH keys) also trigger skips. Customize in `skip-patterns.json`.
 - **Secret redaction.** Every text field the daemon stores (OCR, window titles, URLs, selected text, Slack messages, meeting titles and transcripts) passes through `Redactor.swift`. Known token formats (AWS, Bearer, GitHub, Slack, npm, `sk-` keys, JWTs, private key blocks) and credential URL parameters (`?token=`, `&code=`, ...) are replaced everywhere. Free text also loses long hex/base64 strings and long `KEY=value` lines; those rules skip URLs and titles so links keep working.
 - **Sensitive files.** File-change tracking drops paths matching the `skip-patterns.json` window title patterns (`.pem`, `credentials`, `id_rsa`, ...).
-- **Screenshots deleted after OCR.** Screenshot files are removed from disk immediately after OCR text extraction. Leftovers from interrupted OCR runs are swept after a day (evidence-tagged ones excepted). Only the text and metadata persist.
+- **Screenshots deleted after OCR.** Screenshot files are removed from disk immediately after OCR text extraction. Leftovers from interrupted OCR runs are swept after a day. Only the text and metadata persist.
 - **Retention.** Optional `capture.retention_days` deletes old raw captures (see above).
 - **Logs** go to `~/Library/Logs/apotheosis/`, not world-readable `/tmp`.
-- **Evidence protection.** Samples tagged as evidence (via `/cleanup-screenshots`) cannot be deleted by `delete_samples`.
+- **Evidence protection.** Samples tagged as evidence (via `/cleanup-samples`) cannot be deleted by `delete_samples` and are skipped by `capture.retention_days`.
 - **Recording other people is on you, not the tool.** Meeting recording is opt-in, gated by consent controls (see above), and only ever captures your own machine's mic + system audio — but you are responsible for disclosing that a meeting is being recorded, and some jurisdictions require *all-party* consent to record a conversation, not just your own. Know the law where you (and everyone else on the call) are before turning `meetings.enabled` on.
