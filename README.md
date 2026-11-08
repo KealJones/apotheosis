@@ -556,7 +556,7 @@ All data stays on your Mac. Nothing is sent anywhere.
 | `standups` | Logged standups with yesterday/today/blockers sections |
 | `commitments` | Detected follow-up-worthy items (mentions, PR reviews, promises, etc.) with status tracking |
 | `context_events` | App switches, window focus/title changes and file modifications between samples |
-| `slack_messages` | Structured Slack messages extracted from the accessibility tree |
+| `slack_messages` | Structured Slack messages extracted from the accessibility tree. `sender_explicit` is 1 when the sender came from the message's own name header, 0 when it was inherited from the message above (Slack only shows the name on the first message of a run) or is unknown |
 | `meetings` / `meeting_segments` | Opt-in meeting records, transcripts, summaries and action items |
 
 ## Privacy and security
