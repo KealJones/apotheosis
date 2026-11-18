@@ -461,7 +461,7 @@ pnpm --filter @apotheosis/core build
 pnpm --filter apotheosis-mcp build
 ```
 
-The MCP server is already registered in `.mcp.json` — Claude Code picks it up automatically when you open this directory.
+The MCP server runs as a Launch Agent on `http://localhost:47330/mcp` (installed by setup) and is registered in `.mcp.json`, so Claude Code picks it up when you open this directory. After rebuilding `apps/mcp`, restart it with `launchctl kickstart -k gui/$(id -u)/com.kealjones.apotheosis.mcp`.
 
 Verify:
 ```bash

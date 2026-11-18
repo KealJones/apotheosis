@@ -80,6 +80,15 @@ Only needs to be run once.
    ```
    Verify it started with `pgrep -f 'debug/Capture'`.
 
+10b. **Install and start the MCP server Launch Agent.** It serves `http://localhost:47330/mcp`, which `.mcp.json` points at. launchd has no shell init, so resolve the real node binary rather than an asdf/nvm shim:
+   ```bash
+   sed -e "s|__NODE_PATH__|$(node -p 'process.execPath')|g" -e "s|__REPO_DIR__|$(pwd)|g" -e "s|__LOG_DIR__|$HOME/Library/Logs/apotheosis|g" \
+     apps/mcp/com.kealjones.apotheosis.mcp.plist \
+     > ~/Library/LaunchAgents/com.kealjones.apotheosis.mcp.plist
+   launchctl load ~/Library/LaunchAgents/com.kealjones.apotheosis.mcp.plist
+   ```
+   Verify with `curl -s -o /dev/null -w '%{http_code}' http://localhost:47330/` (expect `404`; only `/mcp` is served).
+
 11. **Report success and explain required permissions:**
     ```
     Setup complete. The capture daemon is running and will auto-start on login.
@@ -110,6 +119,7 @@ Only needs to be run once.
 
 ## Notes
 - The MCP server won't be available until Claude Code is restarted after the first build (it reads `.mcp.json` on startup). Mention this to the user.
+- After rebuilding `apps/mcp`, restart the server: `launchctl kickstart -k gui/$(id -u)/com.kealjones.apotheosis.mcp`. Logs go to `~/Library/Logs/apotheosis/mcp.log`.
 - The Launch Agent plist template lives at `apps/capture/com.kealjones.apotheosis.capture.plist`. The `__BINARY_PATH__` and `__LOG_DIR__` placeholders get replaced during setup.
 - If the user already has a `user-config.json` but wants to change their patterns, they can edit it directly at `~/Library/Application Support/apotheosis/user-config.json`.
 - Logs go to `~/Library/Logs/apotheosis/capture.log`.

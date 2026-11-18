@@ -155,7 +155,7 @@ Runs a minute after launch and every 6 hours. Always sweeps screenshot files old
 
 ## MCP server
 
-Registered in `.mcp.json`, started automatically by Claude Code. Communicates over stdio.
+Runs as a Launch Agent (`com.kealjones.apotheosis.mcp`) serving streamable HTTP on `http://localhost:47330/mcp`; `.mcp.json` points Claude Code at that URL. HTTP rather than stdio so org policies that only allow `localhost` MCP URLs still permit it. After rebuilding, restart with `launchctl kickstart -k gui/$(id -u)/com.kealjones.apotheosis.mcp`.
 
 ### Important tools for standups
 

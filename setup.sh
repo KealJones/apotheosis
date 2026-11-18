@@ -116,6 +116,17 @@ sed -e "s|__BINARY_PATH__|${BINARY_PATH}|g" -e "s|__LOG_DIR__|${LOG_DIR}|g" \
   > "$PLIST_DEST"
 echo "Installed Launch Agent to: $PLIST_DEST"
 
+# MCP server runs as its own Launch Agent on http://localhost:47330/mcp.
+# launchd has no shell init, so resolve the real node binary (not an asdf/nvm shim).
+NODE_PATH="$(node -p 'process.execPath')"
+MCP_PLIST_DEST="${HOME}/Library/LaunchAgents/com.kealjones.apotheosis.mcp.plist"
+sed -e "s|__NODE_PATH__|${NODE_PATH}|g" -e "s|__REPO_DIR__|${REPO_DIR}|g" -e "s|__LOG_DIR__|${LOG_DIR}|g" \
+  "${REPO_DIR}/apps/mcp/com.kealjones.apotheosis.mcp.plist" \
+  > "$MCP_PLIST_DEST"
+launchctl unload "$MCP_PLIST_DEST" 2>/dev/null || true
+launchctl load "$MCP_PLIST_DEST"
+echo "Installed and started MCP server Launch Agent: $MCP_PLIST_DEST"
+
 echo ""
 echo "=== Setup complete ==="
 echo ""

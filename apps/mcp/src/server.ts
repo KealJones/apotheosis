@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createServer } from 'node:http';
 
 import { getDb, tracked } from '@apotheosis/core';
 
@@ -40,11 +41,6 @@ import * as runDetectors from './tools/run_detectors.js';
 // Initialize DB on startup (creates tables, data dir, screenshots dir)
 getDb();
 
-const server = new McpServer({
-  name: 'apotheosis',
-  version: '0.1.0',
-});
-
 // Every module in tools/ exports name, description, inputSchema (a zod shape), and handler.
 const tools = [
   recentActivity,
@@ -82,22 +78,55 @@ const tools = [
   runDetectors,
 ];
 
-for (const tool of tools) {
-  const handler = 'trackUsage' in tool && tool.trackUsage === false
-    ? tool.handler
-    : tracked(tool.name, tool.handler);
-  server.registerTool(tool.name, { description: tool.description, inputSchema: tool.inputSchema }, handler);
+// Stateless: each HTTP request gets a fresh McpServer + transport, so no session state to track.
+function buildServer() {
+  const server = new McpServer({ name: 'apotheosis', version: '0.1.0' });
+  for (const tool of tools) {
+    const handler = 'trackUsage' in tool && tool.trackUsage === false
+      ? tool.handler
+      : tracked(tool.name, tool.handler);
+    server.registerTool(tool.name, { description: tool.description, inputSchema: tool.inputSchema }, handler);
+  }
+  return server;
 }
 
 // ── start ─────────────────────────────────────────────────────────────────────
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  // MCP servers communicate over stdio; log to stderr so it doesn't corrupt the protocol
-  process.stderr.write('apotheosis MCP server running\n');
-}
+// Served over localhost HTTP (not stdio) so org policies that only allow
+// `http://localhost:*/mcp` servers still permit it. Bound to 127.0.0.1 with
+// DNS-rebinding protection so browser pages can't reach it.
+const PORT = Number(process.env.APOTHEOSIS_MCP_PORT ?? 47330);
+const HOST = '127.0.0.1';
 
-main().catch((err) => {
+const httpServer = createServer(async (req, res) => {
+  if (new URL(req.url ?? '/', `http://${HOST}`).pathname !== '/mcp') {
+    res.writeHead(404).end();
+    return;
+  }
+  const server = buildServer();
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+    enableDnsRebindingProtection: true,
+    allowedHosts: [`127.0.0.1:${PORT}`, `localhost:${PORT}`],
+  });
+  res.on('close', () => {
+    transport.close();
+    server.close();
+  });
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res);
+  } catch (err) {
+    process.stderr.write(`Request error: ${err}\n`);
+    if (!res.headersSent) res.writeHead(500).end();
+  }
+});
+
+httpServer.on('error', (err) => {
   process.stderr.write(`Fatal error: ${err}\n`);
   process.exit(1);
+});
+
+httpServer.listen(PORT, HOST, () => {
+  process.stderr.write(`apotheosis MCP server listening on http://localhost:${PORT}/mcp\n`);
 });
